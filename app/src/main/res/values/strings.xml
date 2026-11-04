@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">SaudeColetor</string>
+    <string name="descricao_acessibilidade">Detecta 3 toques seguidos no botão de aumentar volume e envia um alerta ao servidor do projeto. Não lê nem registra o conteúdo da tela.</string>
+</resources>
