@@ -8,18 +8,24 @@ import retrofit2.http.POST
 
 data class Medicao(
     val id: String,
+    val usuario: String,
     val tipo: String,
-    val valor: Double,
-    val valor2: Double? = null,   // só usado na pressão (diastólica)
+    val valor: Any,            // número, ou "semDados" quando não há leitura
+    val valor2: Any? = null,   // diastólica (tipo desativado por enquanto)
     val unidade: String,
-    val dataHora: String
+    val dataHora: String? = null,  // momento da medição (ausente em "semDados")
+    val enviadoEm: String          // momento do envio
 )
 
 data class Alerta(
     val id: String,
+    val usuario: String,
     val tipo: String,
     val dataHora: String,
-    val origem: String
+    val origem: String,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val localizacaoEm: String? = null  // quando a posição foi obtida
 )
 
 interface ApiService {
@@ -31,9 +37,7 @@ interface ApiService {
 }
 
 object Api {
-    // Emulador com "adb reverse tcp:3000 tcp:3000": localhost
     const val BASE_URL = "http://localhost:3000/"
-    // Celular real na mesma rede Wi-Fi: use o IP do PC
     // const val BASE_URL = "http://192.168.0.15:3000/"
 
     val service: ApiService by lazy {

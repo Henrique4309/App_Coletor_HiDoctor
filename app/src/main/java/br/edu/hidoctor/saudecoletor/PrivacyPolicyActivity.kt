@@ -13,11 +13,12 @@ class PrivacyPolicyActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             Text(
-                "Este app lê do Health Connect os seguintes dados: glicemia, pressão arterial, " +
-                        "temperatura corporal, frequência cardíaca, variabilidade da frequência cardíaca, " +
-                        "saturação de oxigênio, frequência respiratória, frequência cardíaca em repouso " +
-                        "e temperatura da pele. Os dados são enviados à API do projeto, apenas para " +
-                        "gerar relatórios acadêmicos, e não são compartilhados com terceiros.",
+                "Este app lê do Health Connect a frequência cardíaca, a frequência cardíaca em " +
+                        "repouso, a variabilidade da frequência cardíaca e a saturação de oxigênio, e os " +
+                        "envia, junto do seu nome de usuário, à API do projeto a cada poucos segundos. " +
+                        "Quando você aciona o alerta (3 toques no botão de volume), envia também a sua " +
+                        "localização. Os dados são usados apenas para fins acadêmicos e não são " +
+                        "compartilhados com terceiros.",
                 modifier = Modifier.padding(16.dp)
             )
         }

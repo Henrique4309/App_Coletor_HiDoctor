@@ -41,13 +41,18 @@ object Alertas {
         if (!podeEnviar()) return
         val app = context.applicationContext
         scope.launch {
+            val local = Localizacao.obter(app)
             val ok = try {
                 Api.service.enviarAlerta(
                     Alerta(
                         id = UUID.randomUUID().toString(),
+                        usuario = Config.usuario(app) ?: "semUsuario",
                         tipo = "volume_x3",
                         dataHora = Instant.now().toString(),
-                        origem = origem
+                        origem = origem,
+                        latitude = local?.latitude,
+                        longitude = local?.longitude,
+                        localizacaoEm = local?.let { Instant.ofEpochMilli(it.time).toString() }
                     )
                 ).isSuccessful
             } catch (e: Exception) {

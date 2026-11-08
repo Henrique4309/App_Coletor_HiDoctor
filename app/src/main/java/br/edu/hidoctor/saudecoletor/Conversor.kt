@@ -1,37 +1,60 @@
 package br.edu.hidoctor.saudecoletor
 
 import androidx.health.connect.client.records.*
+import java.time.Instant
+import kotlin.reflect.KClass
 
-fun converter(r: Record): List<Medicao> = when (r) {
-    is HeartRateRecord -> r.samples.mapIndexed { i, s ->
-        Medicao("${r.metadata.id}-$i", "frequencia_cardiaca",
-            s.beatsPerMinute.toDouble(), null, "bpm", s.time.toString())
+class InfoTipo(val nome: String, val unidade: String)
+
+val INFO_TIPOS: Map<KClass<out Record>, InfoTipo> = mapOf(
+    HeartRateRecord::class to InfoTipo("frequencia_cardiaca", "bpm"),
+    RestingHeartRateRecord::class to InfoTipo("frequencia_repouso", "bpm"),
+    HeartRateVariabilityRmssdRecord::class to InfoTipo("variabilidade_fc", "ms"),
+    OxygenSaturationRecord::class to InfoTipo("saturacao_oxigenio", "%"),
+    // Desativados por enquanto (veja TIPOS_DESATIVADOS)
+    RespiratoryRateRecord::class to InfoTipo("frequencia_respiratoria", "rpm"),
+    BodyTemperatureRecord::class to InfoTipo("temperatura_corporal", "°C"),
+    BloodGlucoseRecord::class to InfoTipo("glicemia", "mg/dL"),
+    BloodPressureRecord::class to InfoTipo("pressao_arterial", "mmHg"),
+    SkinTemperatureRecord::class to InfoTipo("temperatura_pele", "°C (variação)"),
+)
+
+data class Leitura(
+    val tipo: String,
+    val valor: Double,
+    val valor2: Double?,
+    val unidade: String,
+    val momento: Instant
+)
+
+private fun leitura(
+    classe: KClass<out Record>, valor: Double, valor2: Double?, momento: Instant
+): Leitura {
+    val info = INFO_TIPOS.getValue(classe)
+    return Leitura(info.nome, valor, valor2, info.unidade, momento)
+}
+
+fun converter(r: Record): List<Leitura> = when (r) {
+    is HeartRateRecord -> r.samples.map {
+        leitura(HeartRateRecord::class, it.beatsPerMinute.toDouble(), null, it.time)
     }
     is RestingHeartRateRecord -> listOf(
-        Medicao(r.metadata.id, "frequencia_repouso",
-            r.beatsPerMinute.toDouble(), null, "bpm", r.time.toString()))
+        leitura(RestingHeartRateRecord::class, r.beatsPerMinute.toDouble(), null, r.time))
     is HeartRateVariabilityRmssdRecord -> listOf(
-        Medicao(r.metadata.id, "variabilidade_fc",
-            r.heartRateVariabilityMillis, null, "ms", r.time.toString()))
+        leitura(HeartRateVariabilityRmssdRecord::class, r.heartRateVariabilityMillis, null, r.time))
     is OxygenSaturationRecord -> listOf(
-        Medicao(r.metadata.id, "saturacao_oxigenio",
-            r.percentage.value, null, "%", r.time.toString()))
+        leitura(OxygenSaturationRecord::class, r.percentage.value, null, r.time))
     is RespiratoryRateRecord -> listOf(
-        Medicao(r.metadata.id, "frequencia_respiratoria",
-            r.rate, null, "rpm", r.time.toString()))
+        leitura(RespiratoryRateRecord::class, r.rate, null, r.time))
     is BodyTemperatureRecord -> listOf(
-        Medicao(r.metadata.id, "temperatura_corporal",
-            r.temperature.inCelsius, null, "°C", r.time.toString()))
+        leitura(BodyTemperatureRecord::class, r.temperature.inCelsius, null, r.time))
     is BloodGlucoseRecord -> listOf(
-        Medicao(r.metadata.id, "glicemia",
-            r.level.inMilligramsPerDeciliter, null, "mg/dL", r.time.toString()))
+        leitura(BloodGlucoseRecord::class, r.level.inMilligramsPerDeciliter, null, r.time))
     is BloodPressureRecord -> listOf(
-        Medicao(r.metadata.id, "pressao_arterial",
-            r.systolic.inMillimetersOfMercury, r.diastolic.inMillimetersOfMercury,
-            "mmHg", r.time.toString()))
-    is SkinTemperatureRecord -> r.deltas.mapIndexed { i, d ->
-        Medicao("${r.metadata.id}-$i", "temperatura_pele",
-            d.delta.inCelsius, null, "°C (variação)", d.time.toString())
+        leitura(BloodPressureRecord::class, r.systolic.inMillimetersOfMercury,
+            r.diastolic.inMillimetersOfMercury, r.time))
+    is SkinTemperatureRecord -> r.deltas.map {
+        leitura(SkinTemperatureRecord::class, it.delta.inCelsius, null, it.time)
     }
     else -> emptyList()
 }

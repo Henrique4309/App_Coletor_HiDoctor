@@ -12,17 +12,27 @@ import kotlin.random.Random
 import kotlin.reflect.KClass
 import androidx.health.connect.client.time.TimeRangeFilter
 
+/** Tipos ATIVOS nesta versão: são os únicos lidos, enviados e pedidos ao usuário. */
 val TIPOS: List<KClass<out Record>> = listOf(
+    HeartRateRecord::class,
+    RestingHeartRateRecord::class,
+    HeartRateVariabilityRmssdRecord::class,
+    OxygenSaturationRecord::class,
+)
+
+/**
+ * DESATIVADOS por enquanto. Para reativar um tipo: mova-o para TIPOS
+ * e descomente a permissão dele no AndroidManifest.xml.
+ */
+val TIPOS_DESATIVADOS: List<KClass<out Record>> = listOf(
     BloodGlucoseRecord::class,
     BloodPressureRecord::class,
     BodyTemperatureRecord::class,
-    HeartRateRecord::class,
-    HeartRateVariabilityRmssdRecord::class,
-    OxygenSaturationRecord::class,
     RespiratoryRateRecord::class,
-    RestingHeartRateRecord::class,
     SkinTemperatureRecord::class,
 )
+
+const val PERMISSAO_SEGUNDO_PLANO = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
 
 val PERMISSOES_LEITURA: Set<String> =
     TIPOS.map { HealthPermission.getReadPermission(it) }.toSet()
@@ -126,7 +136,7 @@ suspend fun limparDadosDeTeste(client: HealthConnectClient): String {
         Instant.EPOCH,
         Instant.now().plus(1, ChronoUnit.DAYS)
     )
-    TIPOS.forEach { client.deleteRecords(it, filtro) }
+    (TIPOS + TIPOS_DESATIVADOS).forEach { client.deleteRecords(it, filtro) }
     return "Dados de teste apagados do Health Connect."
 }
 
