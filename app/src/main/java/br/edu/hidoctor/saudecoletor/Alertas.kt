@@ -2,28 +2,13 @@ package br.edu.hidoctor.saudecoletor
 
 import android.content.Context
 import android.os.SystemClock
-import android.widget.Toast
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.util.UUID
-
-/** Detecta 3 toques seguidos dentro de uma janela de tempo. */
-class DetectorTriploVolume(
-    private val janelaMs: Long = 1500,
-    private val aoDetectar: () -> Unit
-) {
-    private val toques = ArrayDeque<Long>()
-
-    fun registrar() {
-        val agora = SystemClock.elapsedRealtime()
-        toques.addLast(agora)
-        while (toques.isNotEmpty() && agora - toques.first() > janelaMs) toques.removeFirst()
-        if (toques.size >= 3) {
-            toques.clear()
-            aoDetectar()
-        }
-    }
-}
 
 object Alertas {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -37,11 +22,15 @@ object Alertas {
         return true
     }
 
-    fun disparar(context: Context, origem: String) {
-        if (!podeEnviar()) return
+    /**
+     * Envia o alerta na hora, com a posição simulada. Devolve false se foi ignorado
+     * (outro alerta há menos de 5 s). O resultado do envio chega em [aoTerminar], na thread principal.
+     */
+    fun disparar(context: Context, origem: String, aoTerminar: (Boolean) -> Unit = {}): Boolean {
+        if (!podeEnviar()) return false
         val app = context.applicationContext
         scope.launch {
-            val local = Localizacao.obter(app)
+            val local = Simulador.posicao()
             val ok = try {
                 Api.service.enviarAlerta(
                     Alerta(
@@ -50,21 +39,16 @@ object Alertas {
                         tipo = "volume_x3",
                         dataHora = Instant.now().toString(),
                         origem = origem,
-                        latitude = local?.latitude,
-                        longitude = local?.longitude,
-                        localizacaoEm = local?.let { Instant.ofEpochMilli(it.time).toString() }
+                        latitude = local.latitude,
+                        longitude = local.longitude,
+                        localizacaoEm = local.momento.toString()
                     )
                 ).isSuccessful
             } catch (e: Exception) {
                 false
             }
-            withContext(Dispatchers.Main) {
-                Toast.makeText(
-                    app,
-                    if (ok) "Alerta enviado ao servidor" else "Falha ao enviar o alerta",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+            withContext(Dispatchers.Main) { aoTerminar(ok) }
         }
+        return true
     }
 }

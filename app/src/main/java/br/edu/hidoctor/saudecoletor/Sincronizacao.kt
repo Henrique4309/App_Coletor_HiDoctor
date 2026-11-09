@@ -1,65 +1,60 @@
 package br.edu.hidoctor.saudecoletor
 
-import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.request.ReadRecordsRequest
-import androidx.health.connect.client.time.TimeRangeFilter
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.IOException
 import java.time.Instant
-import java.time.temporal.ChronoUnit
 import java.util.UUID
+import kotlin.math.roundToLong
 
-const val SEM_DADOS = "semDados"
-const val JANELA_DIAS = 30L   // quão para trás procurar a última leitura existente
-
-/** Texto de status mostrado na tela e na notificação. */
+/** Estado compartilhado entre o serviço e a tela. */
 object Estado {
-    val sincronizacao = MutableStateFlow("Aguardando...")
+    val sincronizacao = MutableStateFlow("Sincronização parada")
+    val rodando = MutableStateFlow(false)
     val leituras = MutableStateFlow<Map<String, Leitura>>(emptyMap())
     val historico = MutableStateFlow<Map<String, List<Double>>>(emptyMap())
     val ultimoEnvio = MutableStateFlow<Long?>(null)
     val servidorOk = MutableStateFlow(true)
+    val emergencias = MutableStateFlow<Set<Emergencia>>(emptySet())
 }
 
-fun guardarSeMaisRecente(mapa: MutableMap<String, Leitura>, nova: Leitura) {
-    val atual = mapa[nova.tipo]
-    if (atual == null || nova.momento.isAfter(atual.momento)) mapa[nova.tipo] = nova
-}
-
-/** Até 2 casas decimais; se o valor for inteiro, vai como inteiro (80, e não 80.0). */
-fun arredondar(v: Double): Number {
-    val r = Math.round(v * 100.0) / 100.0
-    return if (r == Math.rint(r)) r.toLong() else r
-}
-
-/** Lê, para cada tipo ATIVO, a leitura mais recente que já existe no Health Connect. */
-suspend fun lerUltimas(client: HealthConnectClient): Map<String, Leitura> {
-    val fim = Instant.now()
-    val filtro = TimeRangeFilter.between(fim.minus(JANELA_DIAS, ChronoUnit.DAYS), fim)
-    val saida = mutableMapOf<String, Leitura>()
-    for (tipo in TIPOS) {
-        val registros = client.readRecords(
-            ReadRecordsRequest(tipo, filtro, ascendingOrder = false, pageSize = 20)
-        ).records
-        registros.flatMap { converter(it) }.forEach { guardarSeMaisRecente(saida, it) }
+/** Liga ou desliga uma simulação. Parada e arritmia não coexistem; hipo e hiperglicemia também não. */
+fun alternarEmergencia(e: Emergencia) {
+    val atual = Estado.emergencias.value.toMutableSet()
+    if (!atual.remove(e)) {
+        atual.add(e)
+        when (e) {
+            Emergencia.PARADA -> atual.remove(Emergencia.ARRITMIA)
+            Emergencia.ARRITMIA -> atual.remove(Emergencia.PARADA)
+            Emergencia.HIPOGLICEMIA -> atual.remove(Emergencia.HIPERGLICEMIA)
+            Emergencia.HIPERGLICEMIA -> atual.remove(Emergencia.HIPOGLICEMIA)
+        }
     }
-    return saida
+    Estado.emergencias.value = atual
 }
 
-/** Uma medição por tipo ativo: a última leitura conhecida ou "semDados". */
-fun montarMedicoes(usuario: String, ultimas: Map<String, Leitura>): List<Medicao> {
+/** Número inteiro quando for inteiro; senão, no máximo duas casas decimais. */
+private fun numero(v: Double): Number =
+    if (v % 1.0 == 0.0) v.toLong() else (v * 100.0).roundToLong() / 100.0
+
+/** Publica as leituras para a tela (valores e minigráficos). */
+fun publicarLeituras(leituras: List<Leitura>) {
+    Estado.leituras.value = leituras.associateBy { it.tipo }
+    val h = Estado.historico.value.toMutableMap()
+    for (l in leituras) h[l.tipo] = (h[l.tipo].orEmpty() + l.valor).takeLast(15)
+    Estado.historico.value = h
+}
+
+fun montarMedicoes(usuario: String, leituras: List<Leitura>): List<Medicao> {
     val agora = Instant.now().toString()
-    return TIPOS.map { tipo ->
-        val info = INFO_TIPOS.getValue(tipo)
-        val l = ultimas[info.nome]
+    return leituras.map { l ->
         Medicao(
             id = UUID.randomUUID().toString(),
             usuario = usuario,
-            tipo = info.nome,
-            valor = l?.valor?.let { arredondar(it) } ?: SEM_DADOS,
-            valor2 = l?.valor2?.let { arredondar(it) },
-            unidade = info.unidade,
-            dataHora = l?.momento?.toString(),
+            tipo = l.tipo,
+            valor = numero(l.valor),
+            valor2 = l.valor2?.let { numero(it) },
+            unidade = l.unidade,
+            dataHora = l.momento.toString(),
             enviadoEm = agora
         )
     }
@@ -75,12 +70,4 @@ suspend fun enviarMedicoes(lista: List<Medicao>): Boolean {
         }
     }
     return true
-}
-
-/** Publica as últimas leituras para a tela (valores e minigráficos). */
-fun publicarLeituras(ultimas: Map<String, Leitura>) {
-    Estado.leituras.value = ultimas.toMap()
-    val h = Estado.historico.value.toMutableMap()
-    for ((tipo, l) in ultimas) h[tipo] = (h[tipo].orEmpty() + l.valor).takeLast(15)
-    Estado.historico.value = h
 }

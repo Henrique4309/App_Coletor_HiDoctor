@@ -14,22 +14,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 
+/** Paleta em tons de cinza (versão de simulação). */
 object Cores {
-    val Teal = Color(0xFF0F9C89)
-    val TealEscuro = Color(0xFF0B786A)
-    val Menta = Color(0xFFE2F5F0)
-    val Menta2 = Color(0xFFCCECE4)
-    val Fundo = Color(0xFFF7FCFA)
-    val Tinta = Color(0xFF263240)
-    val Suave = Color(0xFF6E7C88)
-    val Vermelho = Color(0xFFE23636)
-    val VermelhoEscuro = Color(0xFFB22024)
-    val Rosa = Color(0xFFDE4650)
-    val RosaFundo = Color(0xFFFFE9E9)
-    val Amarelo = Color(0xFFD6961E)
-    val AmareloFundo = Color(0xFFFFF3D6)
-    val Azul = Color(0xFF3C78D2)
-    val AzulFundo = Color(0xFFE2EEFC)
+    val Escuro = Color(0xFF555B61)       // cor principal (no lugar do verde)
+    val MaisEscuro = Color(0xFF383C40)
+    val Claro = Color(0xFFEDEEEF)
+    val Borda = Color(0xFFD8DADC)
+    val Fundo = Color(0xFFF7F7F8)
+    val Tinta = Color(0xFF25282B)
+    val Suave = Color(0xFF747A80)
+    val Sombra = Color(0x33000000)
+    val SombraLeve = Color(0x22000000)
 }
 
 val Poppins = FontFamily(
@@ -42,13 +37,13 @@ val Poppins = FontFamily(
 @Composable
 fun TemaHidoctor(conteudo: @Composable () -> Unit) {
     val esquema = lightColorScheme(
-        primary = Cores.Teal,
+        primary = Cores.Escuro,
         onPrimary = Color.White,
         background = Cores.Fundo,
         onBackground = Cores.Tinta,
         surface = Color.White,
         onSurface = Cores.Tinta,
-        error = Cores.Vermelho
+        error = Cores.MaisEscuro
     )
     MaterialTheme(colorScheme = esquema, content = conteudo)
 }

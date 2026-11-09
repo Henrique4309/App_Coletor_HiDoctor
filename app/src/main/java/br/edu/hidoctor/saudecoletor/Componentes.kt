@@ -1,32 +1,23 @@
 package br.edu.hidoctor.saudecoletor
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -47,15 +38,15 @@ import kotlin.math.sin
 
 // ───────────────────────── Logo ─────────────────────────
 
-/** Símbolo do hidoctor: círculo verde, anel fino, batimento e cruz. Desenhado em código, sem imagem. */
+/** Símbolo do hidoctor em tons de cinza. Desenhado em código, sem imagem. */
 @Composable
 fun LogoHidoctor(tamanho: Dp, modifier: Modifier = Modifier) {
     Canvas(modifier.size(tamanho)) {
         val r = size.minDimension / 2f
         val c = center
-        drawCircle(Cores.Teal, radius = r, center = c)
+        drawCircle(Cores.Escuro, radius = r, center = c)
         drawCircle(
-            Color(0xFFC8F0E8), radius = r * 0.842f, center = c,
+            Color(0xFFD5D8DB), radius = r * 0.842f, center = c,
             style = Stroke(width = maxOf(r * 0.025f, 1f))
         )
         val pontos = listOf(
@@ -75,7 +66,7 @@ fun LogoHidoctor(tamanho: Dp, modifier: Modifier = Modifier) {
         val cx = c.x + 0.531f * r
         val cy = c.y - 0.695f * r
         val meio = 0.09f * r
-        val cruz = Color(0xFFBEECE2)
+        val cruz = Color(0xFFC4C8CC)
         val larg = r * 0.096f
         drawLine(cruz, Offset(cx - meio, cy), Offset(cx + meio, cy), strokeWidth = larg, cap = StrokeCap.Round)
         drawLine(cruz, Offset(cx, cy - meio), Offset(cx, cy + meio), strokeWidth = larg, cap = StrokeCap.Round)
@@ -84,7 +75,7 @@ fun LogoHidoctor(tamanho: Dp, modifier: Modifier = Modifier) {
 
 // ───────────────────────── Ícones das métricas ─────────────────────────
 
-enum class IconeMetrica { CORACAO, LUA, ONDA, GOTA }
+enum class IconeMetrica { CORACAO, LUA, ONDA, GOTA, RESPIRACAO, TEMPERATURA, PRESSAO, GLICEMIA }
 
 private fun caixa(cx: Float, cy: Float, w: Float, h: Float) =
     Rect(Offset(cx - w / 2f, cy - h / 2f), Size(w, h))
@@ -122,7 +113,7 @@ private val PONTOS_GOTA: List<Offset> = (0 until 360 step 4).map {
     Offset(x.toFloat(), y.toFloat())
 }
 
-/** Círculo colorido com o ícone da métrica dentro (coração, lua, onda ou gota). */
+/** Círculo com o ícone da métrica dentro. */
 @Composable
 fun BadgeMetrica(tipo: IconeMetrica, cor: Color, fundo: Color, tamanho: Dp = 26.dp) {
     Canvas(Modifier.size(tamanho)) {
@@ -150,6 +141,47 @@ fun BadgeMetrica(tipo: IconeMetrica, cor: Color, fundo: Color, tamanho: Dp = 26.
             }
             IconeMetrica.GOTA ->
                 drawPath(caminhoNaCaixa(PONTOS_GOTA, caixa(38 * u, 40 * u, 32 * u, 42 * u)), cor)
+            IconeMetrica.RESPIRACAO -> {
+                drawOval(cor, topLeft = Offset(19 * u, 30 * u), size = Size(16 * u, 28 * u))
+                drawOval(cor, topLeft = Offset(41 * u, 30 * u), size = Size(16 * u, 28 * u))
+                drawLine(cor, Offset(38 * u, 18 * u), Offset(38 * u, 38 * u), 4 * u, StrokeCap.Round)
+                drawLine(cor, Offset(38 * u, 38 * u), Offset(29 * u, 33 * u), 4 * u, StrokeCap.Round)
+                drawLine(cor, Offset(38 * u, 38 * u), Offset(47 * u, 33 * u), 4 * u, StrokeCap.Round)
+            }
+            IconeMetrica.TEMPERATURA -> {
+                drawRoundRect(
+                    cor, topLeft = Offset(33 * u, 14 * u), size = Size(10 * u, 38 * u),
+                    cornerRadius = CornerRadius(5 * u)
+                )
+                drawCircle(cor, radius = 9 * u, center = Offset(38 * u, 54 * u))
+                drawRoundRect(
+                    fundo, topLeft = Offset(36.2f * u, 20 * u), size = Size(3.6f * u, 30 * u),
+                    cornerRadius = CornerRadius(1.8f * u)
+                )
+                drawRoundRect(
+                    cor, topLeft = Offset(36.2f * u, 34 * u), size = Size(3.6f * u, 20 * u),
+                    cornerRadius = CornerRadius(1.8f * u)
+                )
+                drawLine(cor, Offset(48 * u, 22 * u), Offset(54 * u, 22 * u), 3 * u, StrokeCap.Round)
+                drawLine(cor, Offset(48 * u, 30 * u), Offset(54 * u, 30 * u), 3 * u, StrokeCap.Round)
+                drawLine(cor, Offset(48 * u, 38 * u), Offset(54 * u, 38 * u), 3 * u, StrokeCap.Round)
+            }
+            IconeMetrica.PRESSAO -> {
+                drawArc(
+                    cor, startAngle = 180f, sweepAngle = 180f, useCenter = false,
+                    topLeft = Offset(16 * u, 26 * u), size = Size(44 * u, 44 * u),
+                    style = Stroke(width = 5 * u, cap = StrokeCap.Round)
+                )
+                drawLine(cor, Offset(38 * u, 48 * u), Offset(48 * u, 35 * u), 4 * u, StrokeCap.Round)
+                drawCircle(cor, radius = 4.5f * u, center = Offset(38 * u, 48 * u))
+            }
+            IconeMetrica.GLICEMIA -> {
+                drawPath(
+                    caminhoNaCaixa(PONTOS_GOTA, caixa(38 * u, 40 * u, 30 * u, 40 * u)), cor,
+                    style = Stroke(width = 4 * u, join = StrokeJoin.Round)
+                )
+                drawCircle(cor, radius = 4.5f * u, center = Offset(38 * u, 46 * u))
+            }
         }
     }
 }
@@ -187,121 +219,128 @@ fun CardMetrica(
     valor: String?,
     unidade: String,
     icone: IconeMetrica,
-    cor: Color,
-    fundoIcone: Color,
     historico: List<Double>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    tamValor: Int = 30,
+    tamUnidade: Int = 13
 ) {
     val forma = RoundedCornerShape(14.dp)
     Column(
         modifier = modifier
-            .shadow(8.dp, forma, ambientColor = Color(0x330F5046), spotColor = Color(0x330F5046))
+            .shadow(6.dp, forma, ambientColor = Cores.SombraLeve, spotColor = Cores.SombraLeve)
             .background(Color.White, forma)
-            .padding(14.dp)
+            .padding(12.dp)
     ) {
-        BadgeMetrica(icone, cor, fundoIcone, 28.dp)
-        Box(Modifier.height(8.dp))
+        BadgeMetrica(icone, Cores.Escuro, Cores.Claro, 28.dp)
+        Box(Modifier.height(6.dp))
         Txt(titulo, 11, FontWeight.Medium, Cores.Suave, maxLinhas = 1)
         Row(verticalAlignment = Alignment.Bottom) {
-            Txt(valor ?: "--", 32, FontWeight.Bold, if (valor == null) Cores.Menta2 else Cores.Tinta)
+            Txt(valor ?: "--", tamValor, FontWeight.Bold, if (valor == null) Cores.Borda else Cores.Tinta, maxLinhas = 1)
             Box(Modifier.width(5.dp))
-            Txt(unidade, 13, FontWeight.SemiBold, cor, Modifier.padding(bottom = 6.dp))
+            Txt(unidade, tamUnidade, FontWeight.SemiBold, Cores.Escuro, Modifier.padding(bottom = 5.dp), maxLinhas = 1)
         }
         Box(Modifier.height(4.dp))
-        MiniGrafico(historico, cor, Modifier.fillMaxWidth().height(20.dp))
+        MiniGrafico(historico, Cores.Escuro, Modifier.fillMaxWidth().height(18.dp))
     }
 }
 
-// ───────────────────────── Botão Pedir Socorro ─────────────────────────
+// ───────────────────────── Botões ─────────────────────────
 
+/** Botão grande de iniciar/parar a sincronização. */
 @Composable
-fun BotaoSocorro(aoClicar: () -> Unit) {
-    val transicao = rememberInfiniteTransition(label = "pulso")
-    val escala by transicao.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.12f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "escala"
-    )
-    Box(Modifier.size(176.dp), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier.size(167.dp).scale(escala)
-                .background(Cores.Vermelho.copy(alpha = 0.10f), CircleShape)
+fun BotaoSincronizacao(rodando: Boolean, aoClicar: () -> Unit) {
+    val forma = RoundedCornerShape(27.dp)
+    val modificador = Modifier
+        .fillMaxWidth()
+        .height(54.dp)
+        .clip(forma)
+        .let {
+            if (rodando) it.background(Color.White).border(1.5.dp, Cores.Escuro, forma)
+            else it.background(Cores.Escuro)
+        }
+        .clickable(onClick = aoClicar)
+    Box(modificador, contentAlignment = Alignment.Center) {
+        Txt(
+            if (rodando) "Parar sincronização" else "Iniciar sincronização",
+            16, FontWeight.SemiBold, if (rodando) Cores.Escuro else Color.White
         )
-        Box(Modifier.size(143.dp).background(Cores.Vermelho.copy(alpha = 0.18f), CircleShape))
-        Box(Modifier.size(120.dp).offset(y = 3.dp).background(Cores.VermelhoEscuro, CircleShape))
+    }
+}
+
+/** Linha-botão de uma simulação: inicia ou para ao tocar. */
+@Composable
+fun BotaoSimulacao(titulo: String, descricao: String, ativo: Boolean, aoClicar: () -> Unit) {
+    val forma = RoundedCornerShape(14.dp)
+    val textoPrincipal = if (ativo) Color.White else Cores.Tinta
+    val textoSecundario = if (ativo) Color(0xFFD5D8DB) else Cores.Suave
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, forma, ambientColor = Cores.SombraLeve, spotColor = Cores.SombraLeve)
+            .clip(forma)
+            .background(if (ativo) Cores.Escuro else Color.White)
+            .clickable(onClick = aoClicar)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Txt(titulo, 14, FontWeight.SemiBold, textoPrincipal)
+            Txt(descricao, 11, FontWeight.Normal, textoSecundario)
+        }
+        Box(Modifier.width(10.dp))
         Box(
-            modifier = Modifier
-                .size(120.dp)
-                .shadow(14.dp, CircleShape, ambientColor = Color(0x66E23636), spotColor = Color(0x66E23636))
-                .clip(CircleShape)
-                .background(Cores.Vermelho)
-                .clickable(onClick = aoClicar),
-            contentAlignment = Alignment.Center
+            Modifier
+                .background(if (ativo) Color.White else Cores.Claro, CircleShape)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                IconeAlerta(Modifier.size(30.dp))
-                Box(Modifier.height(4.dp))
-                Txt("PEDIR", 18, FontWeight.Bold, Color.White)
-                Txt("SOCORRO", 18, FontWeight.Bold, Color.White)
-            }
+            Txt(if (ativo) "Parar" else "Iniciar", 12, FontWeight.SemiBold, Cores.MaisEscuro)
         }
     }
 }
 
-/** Triângulo de alerta branco com exclamação vermelha. */
+/** Botão discreto, de contorno fino. */
 @Composable
-fun IconeAlerta(modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val u = size.width / 100f
-        val y0 = (size.height - 84 * u) / 2f
-        val tri = Path().apply {
-            moveTo(50 * u, y0)
-            lineTo(100 * u, y0 + 84 * u)
-            lineTo(0f, y0 + 84 * u)
-            close()
-        }
-        drawPath(tri, Color.White)
-        drawPath(tri, Color.White, style = Stroke(width = 8 * u, join = StrokeJoin.Round))
-        drawRoundRect(
-            Cores.Vermelho, topLeft = Offset(45 * u, y0 + 28 * u),
-            size = Size(10 * u, 30 * u), cornerRadius = CornerRadius(4 * u)
-        )
-        drawCircle(Cores.Vermelho, radius = 6 * u, center = Offset(50 * u, y0 + 70 * u))
+fun BotaoDiscreto(texto: String, aoClicar: () -> Unit) {
+    val forma = RoundedCornerShape(20.dp)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(42.dp)
+            .clip(forma)
+            .border(1.dp, Cores.Borda, forma)
+            .clickable(onClick = aoClicar),
+        contentAlignment = Alignment.Center
+    ) {
+        Txt(texto, 13, FontWeight.Medium, Cores.Suave)
     }
 }
 
 // ───────────────────────── Ícones pequenos ─────────────────────────
 
-/** Pino de localização dentro de um círculo menta. */
+/** Pino de localização dentro de um círculo claro. */
 @Composable
-fun BadgeLocalizacao(ativa: Boolean, tamanho: Dp = 38.dp) {
-    val cor = if (ativa) Cores.Teal else Cores.Amarelo
-    val fundo = if (ativa) Cores.Menta else Cores.AmareloFundo
+fun BadgeLocalizacao(tamanho: Dp = 38.dp) {
     Canvas(Modifier.size(tamanho)) {
         val u = size.width / 56f
-        drawCircle(fundo)
+        drawCircle(Cores.Claro)
         val ponta = Path().apply {
             moveTo(28 * u, 51 * u)
             lineTo(15 * u, 27 * u)
             lineTo(41 * u, 27 * u)
             close()
         }
-        drawPath(ponta, cor)
-        drawCircle(cor, radius = 14 * u, center = Offset(28 * u, 21 * u))
-        drawCircle(fundo, radius = 5 * u, center = Offset(28 * u, 21 * u))
+        drawPath(ponta, Cores.Escuro)
+        drawCircle(Cores.Escuro, radius = 14 * u, center = Offset(28 * u, 21 * u))
+        drawCircle(Cores.Claro, radius = 5 * u, center = Offset(28 * u, 21 * u))
     }
 }
 
-/** Círculo verde com um "check" branco. */
+/** Círculo cinza-escuro com um "check" branco. */
 @Composable
 fun IconeCheck(tamanho: Dp = 24.dp) {
     Canvas(Modifier.size(tamanho)) {
         val s = size.width
-        drawCircle(Cores.Teal)
+        drawCircle(Cores.Escuro)
         val p = Path().apply {
             moveTo(0.28f * s, 0.52f * s)
             lineTo(0.44f * s, 0.67f * s)
@@ -336,20 +375,5 @@ fun CoracaoDecorativo(tamanho: Dp, cor: Color) {
             caminhoNaCaixa(PONTOS_CORACAO, caixa(size.width / 2f, size.height / 2f, size.width, size.height * 0.9f)),
             cor
         )
-    }
-}
-
-/** Indicador de etapas (barrinhas). */
-@Composable
-fun IndicadorEtapas(total: Int, atual: Int) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        repeat(total) { i ->
-            Box(
-                Modifier
-                    .height(6.dp)
-                    .width(if (i == atual) 22.dp else 6.dp)
-                    .background(if (i == atual) Cores.Teal else Cores.Menta2, CircleShape)
-            )
-        }
     }
 }

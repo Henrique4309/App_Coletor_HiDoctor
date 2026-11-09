@@ -9,14 +9,24 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.changes.UpsertionChange
-import androidx.health.connect.client.request.ChangesTokenRequest
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Gera os dados simulados e os envia ao servidor a cada 5 s (10 s se falhar).
+ * Começa quando a tela pede (startForegroundService) e termina com stopService.
+ */
 class ServicoSincronizacao : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -28,43 +38,35 @@ class ServicoSincronizacao : Service() {
     override fun onCreate() {
         super.onCreate()
         val canal = NotificationChannel(
-            CANAL, "Sincronização de saúde", NotificationManager.IMPORTANCE_LOW
+            CANAL, "Sincronização", NotificationManager.IMPORTANCE_LOW
         )
         getSystemService(NotificationManager::class.java).createNotificationChannel(canal)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         iniciarPrimeiroPlano()
-        if (job == null) job = scope.launch { laco() }
+        if (job == null) {
+            Estado.rodando.value = true
+            Estado.ultimoEnvio.value = null
+            Estado.servidorOk.value = true
+            Estado.sincronizacao.value = "Sincronizando..."
+            job = scope.launch { laco() }
+        }
         return START_NOT_STICKY
     }
 
     private fun iniciarPrimeiroPlano() {
         val notificacao = criarNotificacao(Estado.sincronizacao.value)
         if (Build.VERSION.SDK_INT >= 29) {
-            var tipos = ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            // O tipo "location" mantém a localização acessível com o app em segundo plano
-            if (Localizacao.temPermissao(this)) {
-                tipos = tipos or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-            }
-            try {
-                startForeground(ID_NOTIFICACAO, notificacao, tipos)
-            } catch (e: Exception) {
-                startForeground(
-                    ID_NOTIFICACAO, notificacao, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-                )
-            }
+            startForeground(
+                ID_NOTIFICACAO, notificacao, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
         } else {
             startForeground(ID_NOTIFICACAO, notificacao)
         }
     }
 
     private suspend fun laco() {
-        val client = HealthConnectClient.getOrCreate(this)
-        val pedido = ChangesTokenRequest(TIPOS.toSet())
-        var token: String? = null
-        val ultimas = mutableMapOf<String, Leitura>()
-
         while (currentCoroutineContext().isActive) {
             var espera = INTERVALO_MS
             try {
@@ -72,49 +74,28 @@ class ServicoSincronizacao : Service() {
                 if (usuario == null) {
                     atualizar("Aguardando nome de usuário...")
                 } else {
-                    // 1) Atualiza o que se sabe sobre os dados
-                    if (token == null) {
-                        val novoToken = client.getChangesToken(pedido)
-                        val lidas = lerUltimas(client)
-                        token = novoToken
-                        ultimas.clear()
-                        ultimas.putAll(lidas)
-                    } else {
-                        var resposta = client.getChanges(token)
-                        while (true) {
-                            if (resposta.changesTokenExpired) {
-                                token = null   // será recriado no próximo ciclo
-                                break
-                            }
-                            resposta.changes
-                                .filterIsInstance<UpsertionChange>()
-                                .flatMap { converter(it.record) }
-                                .forEach { guardarSeMaisRecente(ultimas, it) }
-                            token = resposta.nextChangesToken
-                            if (!resposta.hasMore) break
-                            resposta = client.getChanges(token)
-                        }
-                    }
-                    publicarLeituras(ultimas)
-                    // 2) Envia: leitura nova, última conhecida ou "semDados"
-                    val medicoes = montarMedicoes(usuario, ultimas)
+                    Simulador.posicao()   // mantém a "caminhada" andando
+                    val leituras = Simulador.proximo(Estado.emergencias.value)
+                    publicarLeituras(leituras)
+
+                    val medicoes = montarMedicoes(usuario, leituras)
                     if (enviarMedicoes(medicoes)) {
                         totalEnviado += medicoes.size
-                        val hora = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                        atualizar("Último envio às $hora | total enviado: $totalEnviado")
                         Estado.ultimoEnvio.value = System.currentTimeMillis()
                         Estado.servidorOk.value = true
+                        val hora = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+                        atualizar("Último envio às $hora | total enviado: $totalEnviado")
                     } else {
-                        atualizar("Servidor indisponível. Nova tentativa em 10 s.")
                         Estado.servidorOk.value = false
+                        atualizar("Servidor indisponível. Nova tentativa em 10 s.")
                         espera = ESPERA_ERRO_MS
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                atualizar("Erro: ${e.message}. Nova tentativa em 10 s.")
                 Estado.servidorOk.value = false
+                atualizar("Erro: ${e.message}. Nova tentativa em 10 s.")
                 espera = ESPERA_ERRO_MS
             }
             delay(espera)
@@ -123,7 +104,7 @@ class ServicoSincronizacao : Service() {
 
     private fun criarNotificacao(texto: String): Notification =
         NotificationCompat.Builder(this, CANAL)
-            .setContentTitle("hidoctor")
+            .setContentTitle("HiDoctorTester")
             .setContentText(texto)
             .setSmallIcon(R.drawable.ic_notificacao)
             .setOngoing(true)
@@ -137,13 +118,16 @@ class ServicoSincronizacao : Service() {
 
     override fun onDestroy() {
         scope.cancel()
+        job = null
+        Estado.rodando.value = false
+        Estado.sincronizacao.value = "Sincronização parada"
         super.onDestroy()
     }
 
     companion object {
         private const val CANAL = "sync"
         private const val ID_NOTIFICACAO = 1
-        private const val INTERVALO_MS = 5_000L     // consulta e envio a cada 5 s
+        private const val INTERVALO_MS = 5_000L     // gera e envia a cada 5 s
         private const val ESPERA_ERRO_MS = 10_000L  // após falha, espera 10 s
     }
 }

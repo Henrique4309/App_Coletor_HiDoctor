@@ -10,7 +10,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "br.edu.hidoctor.saudecoletor"
+        applicationId = "br.edu.hidoctor.saudecoletortester"
         minSdk = 28
         targetSdk = 37
         versionCode = 1
