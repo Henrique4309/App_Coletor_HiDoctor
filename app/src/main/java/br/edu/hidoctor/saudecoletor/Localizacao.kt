@@ -17,38 +17,48 @@ object Localizacao {
 
     fun temPermissao(context: Context): Boolean =
         concedida(context, Manifest.permission.ACCESS_FINE_LOCATION) ||
-                concedida(context, Manifest.permission.ACCESS_COARSE_LOCATION)
+            concedida(context, Manifest.permission.ACCESS_COARSE_LOCATION)
 
     fun ligada(context: Context): Boolean {
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         return LocationManagerCompat.isLocationEnabled(lm)
     }
 
-    /** Posição atual (espera até 5 s) ou, se não vier a tempo, a última conhecida. Null se não houver nenhuma. */
+    /** Última posição conhecida, devolvida na hora (sem esperar). Null se não houver nenhuma. */
     @SuppressLint("MissingPermission")
-    suspend fun obter(context: Context): Location? {
+    fun ultimaConhecida(context: Context): Location? {
         if (!temPermissao(context)) return null
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         return try {
-            val provedor = provedoresAtivos(lm).firstOrNull()
-            val atual = if (provedor != null) {
-                withTimeoutOrNull(5_000) { posicaoAtual(context, lm, provedor) }
-            } else null
-            atual ?: ultimaConhecida(lm)
-        } catch (e: SecurityException) {
+            lm.allProviders.mapNotNull {
+                try { lm.getLastKnownLocation(it) } catch (e: Exception) { null }
+            }.maxByOrNull { it.time }
+        } catch (e: Exception) {
             null
         }
     }
 
-    private fun provedoresAtivos(lm: LocationManager): List<String> {
-        val candidatos = buildList {
+    /**
+     * Posição nova e precisa. Tenta o GPS (até 30 s) e, se não vier, os demais
+     * provedores (até 10 s cada). Null se nenhum entregar.
+     */
+    @SuppressLint("MissingPermission")
+    suspend fun precisa(context: Context): Location? {
+        if (!temPermissao(context)) return null
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val ordem = buildList {
+            add(LocationManager.GPS_PROVIDER)
             if (Build.VERSION.SDK_INT >= 31) add(LocationManager.FUSED_PROVIDER)
             add(LocationManager.NETWORK_PROVIDER)
-            add(LocationManager.GPS_PROVIDER)
-        }
-        return candidatos.filter {
+        }.filter {
             try { lm.isProviderEnabled(it) } catch (e: Exception) { false }
         }
+        for (provedor in ordem) {
+            val limite = if (provedor == LocationManager.GPS_PROVIDER) 30_000L else 10_000L
+            val local = withTimeoutOrNull(limite) { posicaoAtual(context, lm, provedor) }
+            if (local != null) return local
+        }
+        return null
     }
 
     @SuppressLint("MissingPermission")
@@ -65,10 +75,4 @@ object Localizacao {
             if (cont.isActive) cont.resume(null)
         }
     }
-
-    @SuppressLint("MissingPermission")
-    private fun ultimaConhecida(lm: LocationManager): Location? =
-        lm.allProviders.mapNotNull {
-            try { lm.getLastKnownLocation(it) } catch (e: SecurityException) { null }
-        }.maxByOrNull { it.time }
 }

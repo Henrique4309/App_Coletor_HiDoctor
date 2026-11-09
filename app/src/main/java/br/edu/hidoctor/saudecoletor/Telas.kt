@@ -218,17 +218,13 @@ fun TelaNome(aoConfirmar: (String) -> Unit) {
 
 // ───────────────────────── Tela principal ─────────────────────────
 
-private fun formatarValor(v: Double): String =
-    if (v % 1.0 == 0.0) v.toLong().toString()
-    else String.format(Locale("pt", "BR"), "%.2f", v).trimEnd('0').trimEnd(',')
-
 @Composable
 fun PainelPrincipal(usuario: String, pendencias: List<String>) {
     val context = LocalContext.current
-    val leituras by Estado.leituras.collectAsState()
-    val historico by Estado.historico.collectAsState()
     val ultimoEnvio by Estado.ultimoEnvio.collectAsState()
     val servidorOk by Estado.servidorOk.collectAsState()
+    val fila by Estado.filaTamanho.collectAsState()
+    val statusAlerta by Estado.statusAlerta.collectAsState()
 
     // Relógio para o "Sincronizado há X s"
     var agora by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -239,16 +235,8 @@ fun PainelPrincipal(usuario: String, pendencias: List<String>) {
         }
     }
 
-    var alertaEnviado by remember { mutableStateOf(false) }
-    LaunchedEffect(alertaEnviado) {
-        if (alertaEnviado) {
-            delay(4000)
-            alertaEnviado = false
-        }
-    }
-
     val textoSync = when {
-        !servidorOk -> "Servidor indisponível"
+        !servidorOk -> if (fila > 0) "Servidor indisponível · $fila na fila" else "Servidor indisponível"
         ultimoEnvio == null -> "Conectando…"
         else -> "Sincronizado há ${((agora - (ultimoEnvio ?: agora)) / 1000).coerceAtLeast(0)} s"
     }
@@ -299,66 +287,19 @@ fun PainelPrincipal(usuario: String, pendencias: List<String>) {
             Txt(textoSync, 12, FontWeight.Medium, if (servidorOk) Cores.TealEscuro else corSync)
         }
 
-        Box(Modifier.height(20.dp))
-
-        // Cards de dados
-        val tituloO2: AnnotatedString = buildAnnotatedString {
-            append("Saturação de O")
-            withStyle(SpanStyle(baselineShift = BaselineShift.Subscript, fontSize = 8.sp)) { append("2") }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CardMetrica(
-                titulo = AnnotatedString("Frequência cardíaca"),
-                valor = leituras["frequencia_cardiaca"]?.let { formatarValor(it.valor) },
-                unidade = "bpm", icone = IconeMetrica.CORACAO,
-                cor = Cores.Rosa, fundoIcone = Cores.RosaFundo,
-                historico = historico["frequencia_cardiaca"].orEmpty(),
-                modifier = Modifier.weight(1f)
-            )
-            CardMetrica(
-                titulo = AnnotatedString("FC em repouso"),
-                valor = leituras["frequencia_repouso"]?.let { formatarValor(it.valor) },
-                unidade = "bpm", icone = IconeMetrica.LUA,
-                cor = Cores.Amarelo, fundoIcone = Cores.AmareloFundo,
-                historico = historico["frequencia_repouso"].orEmpty(),
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Box(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CardMetrica(
-                titulo = AnnotatedString("Variabilidade da FC"),
-                valor = leituras["variabilidade_fc"]?.let { formatarValor(it.valor) },
-                unidade = "ms", icone = IconeMetrica.ONDA,
-                cor = Cores.Teal, fundoIcone = Cores.Menta,
-                historico = historico["variabilidade_fc"].orEmpty(),
-                modifier = Modifier.weight(1f)
-            )
-            CardMetrica(
-                titulo = tituloO2,
-                valor = leituras["saturacao_oxigenio"]?.let { formatarValor(it.valor) },
-                unidade = "%", icone = IconeMetrica.GOTA,
-                cor = Cores.Azul, fundoIcone = Cores.AzulFundo,
-                historico = historico["saturacao_oxigenio"].orEmpty(),
-                modifier = Modifier.weight(1f)
-            )
-        }
-
         // Botão de alerta
-        Box(Modifier.height(14.dp))
+        Box(Modifier.height(28.dp))
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            BotaoSocorro(aoClicar = {
-                Alertas.disparar(context, "botao")
-                alertaEnviado = true
-            })
+            BotaoSocorro(aoClicar = { Alertas.disparar(context, "botao") })
             Txt(
-                if (alertaEnviado) "Alerta enviado com a sua localização" else "ou aperte volume + três vezes",
-                12, if (alertaEnviado) FontWeight.SemiBold else FontWeight.Normal,
-                if (alertaEnviado) Cores.Vermelho else Cores.Suave,
+                statusAlerta ?: "ou aperte volume + três vezes",
+                12,
+                if (statusAlerta != null) FontWeight.SemiBold else FontWeight.Normal,
+                if (statusAlerta != null) Cores.Vermelho else Cores.Suave,
                 alinhar = TextAlign.Center
             )
         }
-        Box(Modifier.height(18.dp))
+        Box(Modifier.height(24.dp))
 
         // Pendências (só aparece se faltar alguma permissão)
         if (pendencias.isNotEmpty()) {

@@ -16,12 +16,12 @@ import kotlinx.coroutines.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.os.SystemClock
 
 class ServicoSincronizacao : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
-    private var totalEnviado = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -60,10 +60,13 @@ class ServicoSincronizacao : Service() {
     }
 
     private suspend fun laco() {
+        Fila.iniciar(this)
         val client = HealthConnectClient.getOrCreate(this)
         val pedido = ChangesTokenRequest(TIPOS.toSet())
         var token: String? = null
         val ultimas = mutableMapOf<String, Leitura>()
+        val ultimasChaves = mutableMapOf<String, String>()   // último valor registrado por tipo
+        var ultimoAtivo = -ATIVIDADE_MS   // faz o primeiro sair logo
 
         while (currentCoroutineContext().isActive) {
             var espera = INTERVALO_MS
@@ -72,6 +75,9 @@ class ServicoSincronizacao : Service() {
                 if (usuario == null) {
                     atualizar("Aguardando nome de usuário...")
                 } else {
+                    // Garante que alertas pendentes (de antes de fechar o app) continuem sendo reenviados
+                    Alertas.retomar(this)
+
                     // 1) Atualiza o que se sabe sobre os dados
                     if (token == null) {
                         val novoToken = client.getChangesToken(pedido)
@@ -95,26 +101,35 @@ class ServicoSincronizacao : Service() {
                             resposta = client.getChanges(token)
                         }
                     }
-                    publicarLeituras(ultimas)
-                    // 2) Envia: leitura nova, última conhecida ou "semDados"
-                    val medicoes = montarMedicoes(usuario, ultimas)
-                    if (enviarMedicoes(medicoes)) {
-                        totalEnviado += medicoes.size
-                        val hora = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                        atualizar("Último envio às $hora | total enviado: $totalEnviado")
+
+                    // 2) Só o que mudou vira medição (com id e hora da coleta) e entra na fila
+                    registrarAlteracoes(usuario, ultimas, ultimasChaves)
+
+                    // 3) Envia a fila e, em seguida, o sinal de que o app está ativo
+                    val agoraMs = SystemClock.elapsedRealtime()
+                    val enviou = esvaziarFila() && (
+                            agoraMs - ultimoAtivo < ATIVIDADE_MS ||
+                                    enviarAtividade(usuario).also { if (it) ultimoAtivo = agoraMs }
+                            )
+                    if (enviou) {
                         Estado.ultimoEnvio.value = System.currentTimeMillis()
                         Estado.servidorOk.value = true
+                        val hora = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+                        atualizar("Último envio às $hora | na fila: ${Estado.filaTamanho.value}")
                     } else {
-                        atualizar("Servidor indisponível. Nova tentativa em 10 s.")
                         Estado.servidorOk.value = false
+                        atualizar(
+                            "Servidor indisponível. Na fila: ${Estado.filaTamanho.value}. " +
+                                "Nova tentativa em 10 s."
+                        )
                         espera = ESPERA_ERRO_MS
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                atualizar("Erro: ${e.message}. Nova tentativa em 10 s.")
                 Estado.servidorOk.value = false
+                atualizar("Erro: ${e.message}. Nova tentativa em 10 s.")
                 espera = ESPERA_ERRO_MS
             }
             delay(espera)
@@ -143,7 +158,8 @@ class ServicoSincronizacao : Service() {
     companion object {
         private const val CANAL = "sync"
         private const val ID_NOTIFICACAO = 1
-        private const val INTERVALO_MS = 5_000L     // consulta e envio a cada 5 s
+        private const val INTERVALO_MS = 5_000L     // consulta a cada 5 s
         private const val ESPERA_ERRO_MS = 10_000L  // após falha, espera 10 s
+        private const val ATIVIDADE_MS = 60_000L    // sinal de que o app está ativo, a cada 60 s
     }
 }
